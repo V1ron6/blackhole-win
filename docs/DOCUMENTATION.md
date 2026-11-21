@@ -46,7 +46,8 @@ One `BlackholeApp` instance owns:
 | Hydra-lite credential tester | `HydraLite.kt` | — | ❌ Not ported — see `PORTING_NOTES.md` |
 | Directory buster | `DirectoryBuster.kt` | — | ❌ Not ported — see `PORTING_NOTES.md` |
 | Exploit shell (recon modules) | `ExploitShell.kt` | — | ❌ Not ported — see `PORTING_NOTES.md` |
-| ~25 smaller dev-tool dialogs (JWT decoder, regex tester, WHOIS, TOTP, DNS lookup, TLS inspector, etc.) | various `*.kt` files | — | ❌ Not ported — low-risk, high-value next batch; see `PORTING_NOTES.md` |
+| JSON formatter, JWT decoder, regex tester, hash identifier, TOTP generator, user-agent switcher | `JsonFormatter.kt`, `JwtDecoder.kt`, `RegexTester.kt`, `HashIdentifier.kt`, `TotpGenerator.kt`, `UserAgentSwitcher.kt` | `JsonFormatterDialog`, `JwtDecoderDialog`, `RegexTesterDialog`, `HashIdentifierDialog`, `TotpGeneratorDialog`, `UserAgentSwitcherDialog` (`.h/.cpp`) | ✅ Ported (Stage 3) |
+| ~19 remaining smaller dev-tool dialogs (WHOIS, DNS lookup, TLS inspector, etc.) | various `*.kt` files | — | ❌ Not ported — see `PORTING_NOTES.md` |
 
 ## Settings file
 
@@ -96,12 +97,25 @@ output and I'll patch directly.
    a real WebView2 SDK as of Stage 2.
 2. ~~Wire `DownloadManager` to `ICoreWebView2::add_DownloadStarting`~~ — done, Stage 2.
 3. ~~Add the per-tab JS toggle button + per-tab request-log viewer~~ — done, Stage 2.
-4. Port the ~25 smaller recon/dev-tool dialogs (JWT decoder, regex tester,
-   WHOIS/DNS lookup, TOTP generator, TLS inspector, etc.) — these are all
-   self-contained, low-risk utility dialogs similar in shape to
-   `DataToolkitDialog.cpp`. (Stage 3+)
-5. Decide on an approach for the four ByteBandit security tools (Hydra-lite,
+4. ~~Port JSON formatter, JWT decoder, regex tester, hash identifier, TOTP
+   generator, user-agent switcher~~ — done, Stage 3.
+5. Port the ~19 remaining smaller recon/dev-tool dialogs (WHOIS/DNS lookup,
+   TLS inspector, cookie inspector, etc.) — self-contained, low-risk,
+   similar shape to the Stage 3 dialogs. (Stage 4-5)
+6. Decide on an approach for the four ByteBandit security tools (Hydra-lite,
    port scanner, directory buster, SSH terminal) — see `PORTING_NOTES.md`. (Stage 6)
+
+## Stage 3 notes
+
+- `UserAgentSwitcherDialog` relies on `ICoreWebView2Settings2` (Queried via
+  `.As<>()` from the cached base `ICoreWebView2Settings`). If your installed
+  WebView2 SDK/runtime is old enough not to expose it, the dialog shows a
+  warning instead of silently failing.
+- `TotpGeneratorDialog` and the hash functions in `DataToolkitDialog` both
+  use Windows CNG (`bcrypt.lib`) - no external crypto library dependency.
+- `JsonFormatterDialog`'s pretty-printer is intentionally simple (tracks
+  string/escape state and brace depth, not a real parser) - same
+  "best-effort on malformed input" behavior the Kotlin version had.
 
 ## Stage 2 known rough edge
 

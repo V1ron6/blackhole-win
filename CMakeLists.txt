@@ -29,6 +29,12 @@ add_executable(Blackhole WIN32
     src/JsConsoleDialog.cpp
     src/DataToolkitDialog.cpp
     src/RequestLogDialog.cpp
+    src/JsonFormatterDialog.cpp
+    src/JwtDecoderDialog.cpp
+    src/RegexTesterDialog.cpp
+    src/HashIdentifierDialog.cpp
+    src/TotpGeneratorDialog.cpp
+    src/UserAgentSwitcherDialog.cpp
 )
 
 target_include_directories(Blackhole PRIVATE

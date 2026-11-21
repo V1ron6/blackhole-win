@@ -34,14 +34,14 @@ Legend: ✅ ported · ⚠️ partially ported / stubbed · ❌ not started
 | `GraphQLIntrospection.kt` | ❌ | Benign: sends a standard GraphQL introspection query. |
 | `HarExport.kt` | ❌ | Benign: exports the request log as a .har file. |
 | `HashCracker.kt` | ❌ **not started, flagged for discussion** | Wordlist-based hash cracking. Same category as `HydraLite` below — ask if you want it and I'll scope it. |
-| `HashIdentifier.kt` | ❌ | Benign: identifies a hash's algorithm from its format (no cracking). |
+| `HashIdentifier.kt` | ✅ (Stage 3) | `HashIdentifierDialog.h/.cpp` - pattern-matches length/charset against known formats, no cracking |
 | `HydraLite.kt` | ❌ **not started, flagged for discussion** | Credential brute-forcer (HTTP Basic/form, FTP, SSH) — same category as the real `hydra` tool. The upstream project scopes it to CTF/authorized-pentest use; I can port it, but wanted to call it out explicitly rather than bundle it in silently. |
-| `JsonFormatter.kt` | ❌ | Benign: pretty-print/minify JSON text. |
-| `JwtDecoder.kt` | ❌ | Benign: decodes (not verifies) a JWT's header/payload. |
+| `JsonFormatter.kt` | ✅ (Stage 3) | `JsonFormatterDialog.h/.cpp` - structural pretty-print/minify, not a validating parser (same scope as upstream) |
+| `JwtDecoder.kt` | ✅ (Stage 3) | `JwtDecoderDialog.h/.cpp` - decodes header+payload via Base64URL, does not verify the signature |
 | `KnownHostsStore.kt` | ❌ | Supporting store for `SSHTerminal.kt` below. |
 | `PortScanner.kt` | ❌ **not started, flagged for discussion** | TCP connect-scan of a target's ports (same category as `nmap -sT`). Ask if you want it ported. |
 | `ProxyManager.kt` | ✅ (see above) | Folded into `CreateWebViewEnvironment()` / `Settings.h` |
-| `RegexTester.kt` | ❌ | Benign: tests a regex against sample text (`std::regex` is a direct fit). |
+| `RegexTester.kt` | ✅ (Stage 3) | `RegexTesterDialog.h/.cpp` - `std::wregex`, ECMAScript grammar, shows match positions + capture groups |
 | `RequestTimeline.kt` | ❌ | Benign: visualizes request timing from the request log. |
 | `RobotsFetch.kt` | ❌ | Benign: fetches and displays `/robots.txt`. |
 | `ScreenshotCapture.kt` | ❌ | WebView2 has a direct equivalent (`CapturePreview`) — straightforward port. |
@@ -51,8 +51,8 @@ Legend: ✅ ported · ⚠️ partially ported / stubbed · ❌ not started
 | `StringsExtractor.kt` | ❌ | Benign: extracts printable strings from a downloaded file (like `strings(1)`). |
 | `TechFingerprint.kt` | ❌ | Benign: fingerprints a site's tech stack from headers/markup (like Wappalyzer). |
 | `TlsInspector.kt` | ❌ | Benign: inspects the TLS certificate of the current connection. |
-| `TotpGenerator.kt` | ❌ | Benign: standard TOTP (RFC 6238) code generator. |
-| `UserAgentSwitcher.kt` | ❌ | Benign: sets `ICoreWebView2Settings::put_UserAgent`. |
+| `TotpGenerator.kt` | ✅ (Stage 3) | `TotpGeneratorDialog.h/.cpp` - RFC 6238 TOTP via CNG HMAC-SHA1, Base32 secret decode, auto-refreshes every second |
+| `UserAgentSwitcher.kt` | ✅ (Stage 3) | `UserAgentSwitcherDialog.h/.cpp` + `BlackholeApp::SetUserAgentOnActiveTab` (`ICoreWebView2Settings2::put_UserAgent`), 4 presets + custom, reloads active tab |
 | `ViewportEmulator.kt` | ❌ | Benign: resizes the WebView2 controller bounds to emulate device viewports. |
 | `WhoisLookup.kt` | ❌ | Benign: WHOIS query over a raw TCP socket. |
 

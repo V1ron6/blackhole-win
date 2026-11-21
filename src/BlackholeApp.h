@@ -41,6 +41,10 @@ public:
     void ExecuteScriptOnActiveTab(const std::wstring& script,
                                    std::function<void(const std::wstring&)> callback);
 
+    // Stage 3: used by UserAgentSwitcherDialog. Applies to the active tab
+    // only and reloads it so the new UA takes effect on the current page.
+    void SetUserAgentOnActiveTab(const std::wstring& ua);
+
     // Used by the Settings window (same translation unit, see
     // BlackholeApp.cpp's anonymous-namespace SettingsWndProc) to read the
     // current values into its controls and write them back on Save.

@@ -55,10 +55,26 @@ exposes a different CMake target name than the raw NuGet layout this
 
 ## 2. Build
 
+**Option 1 — `builder.sh`** (Git Bash, included in Git for Windows — this
+just wraps the two commands below so you don't have to retype them):
+
+```bash
+./builder.sh --webview2-dir "<path from above>"
+# or, if you went the vcpkg route instead:
+./builder.sh --vcpkg "C:/path/to/vcpkg/scripts/buildsystems/vcpkg.cmake"
+
+# other flags: --config Debug, --clean (wipe build/ first), --help
+```
+
+**Option 2 — plain CMake** (PowerShell, cmd, or any shell):
+
 ```powershell
 cmake -S . -B build -G "Visual Studio 17 2022" -A x64 -DWEBVIEW2_DIR="<path from above>"
 cmake --build build --config Release
 ```
+
+Both do exactly the same thing — `builder.sh` is a convenience wrapper, not
+a different build.
 
 The built `Blackhole.exe`, `WebView2Loader.dll`, and the `assets\` folder
 (homepage + ad-block list) all land together in `build\Release\`. Keep them

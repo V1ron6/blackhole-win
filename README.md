@@ -24,10 +24,15 @@ downloads now actually land in `blackhole\` with retention cleanup, the
 per-tab JS toggle has a working toolbar button, and the per-tab request log
 has a viewer dialog.
 
-Still not ported: the ~25 smaller recon/dev-tool dialogs (JWT decoder,
-regex tester, WHOIS, TOTP, etc. — planned for Stage 3+) and the four
-heavier ByteBandit tools (SSH terminal, port scanner, Hydra-lite, directory
-buster — planned for Stage 6, one at a time, only on request). See
+**Stage 3** (this build) adds six more Tools-menu dialogs: JSON formatter,
+JWT decoder (decode-only, no signature check), regex tester, hash
+identifier (pattern-match only, no cracking), TOTP generator, and
+user-agent switcher.
+
+Still not ported: ~19 smaller recon/dev-tool dialogs (WHOIS, DNS lookup,
+TLS inspector, etc. — planned for Stage 4-5) and the four heavier
+ByteBandit tools (SSH terminal, port scanner, Hydra-lite, directory buster
+— planned for Stage 6, one at a time, only on request). See
 [`docs/PORTING_NOTES.md`](docs/PORTING_NOTES.md) for the full file-by-file
 status.
 
@@ -39,8 +44,9 @@ status.
    or network access available, so it has not been compiled or run yet.**
    Expect to fix a handful of small build errors on your first build —
    paste them back to me and I'll patch the source.
-2. Build with CMake (or open the folder directly in Visual Studio, which
-   understands `CMakeLists.txt` natively).
+2. Build with `./builder.sh` (Git Bash — see `docs/BUILD_WINDOWS.md` for the
+   exact flags), plain CMake commands, or by opening the folder directly in
+   Visual Studio, which understands `CMakeLists.txt` natively.
 3. Run `Blackhole.exe`. Settings persist to
    `%APPDATA%\Blackhole\settings.ini`; downloads land in
    `%USERPROFILE%\Downloads\blackhole\`.

@@ -4,6 +4,12 @@
 #include "JsConsoleDialog.h"
 #include "DataToolkitDialog.h"
 #include "RequestLogDialog.h"
+#include "JsonFormatterDialog.h"
+#include "JwtDecoderDialog.h"
+#include "RegexTesterDialog.h"
+#include "HashIdentifierDialog.h"
+#include "TotpGeneratorDialog.h"
+#include "UserAgentSwitcherDialog.h"
 #include <commctrl.h>
 #include <shlwapi.h>
 #include <sstream>
@@ -25,6 +31,7 @@ namespace {
 
         // Tools menu
         ID_TOOL_HTTP = 1200, ID_TOOL_JSCONSOLE, ID_TOOL_DATATOOLKIT,
+        ID_TOOL_JSON, ID_TOOL_JWT, ID_TOOL_REGEX, ID_TOOL_HASHID, ID_TOOL_TOTP, ID_TOOL_USERAGENT, // Stage 3
         ID_TOOL_SSH_STUB, ID_TOOL_PORTSCAN_STUB, ID_TOOL_HYDRA_STUB, ID_TOOL_DIRBUST_STUB,
 
         // Settings dialog (separate child window, own ID space)
@@ -491,6 +498,24 @@ void BlackholeApp::ShowRequestLogForActiveTab() {
     RequestLogDialog::ShowFor(hwndMain_, [t]() { return t->requestLog; });
 }
 
+void BlackholeApp::SetUserAgentOnActiveTab(const std::wstring& ua) {
+    if (activeTab_ < 0 || activeTab_ >= (int)tabs_.size() || !tabs_[activeTab_]->webviewSettings) return;
+
+    // put_UserAgent lives on ICoreWebView2Settings2, not the base
+    // ICoreWebView2Settings this app otherwise uses - QI for it here so
+    // only this one call site needs to know about the versioned interface.
+    ComPtr<ICoreWebView2Settings2> settings2;
+    if (SUCCEEDED(tabs_[activeTab_]->webviewSettings.As(&settings2))) {
+        settings2->put_UserAgent(ua.c_str());
+        if (tabs_[activeTab_]->webview) tabs_[activeTab_]->webview->Reload();
+    } else {
+        MessageBoxW(hwndMain_,
+            L"This WebView2 runtime doesn't expose ICoreWebView2Settings2 - "
+            L"the user-agent override couldn't be applied.",
+            L"Blackhole", MB_ICONWARNING);
+    }
+}
+
 void BlackholeApp::OpenToolForCurrentMode(int toolMenuId) {
     switch (toolMenuId) {
         case ID_TOOL_HTTP:
@@ -513,6 +538,26 @@ void BlackholeApp::OpenToolForCurrentMode(int toolMenuId) {
             return;
         case ID_TOOL_DATATOOLKIT:
             DataToolkitDialog::ShowFor(hwndMain_);
+            return;
+        case ID_TOOL_JSON:
+            JsonFormatterDialog::ShowFor(hwndMain_);
+            return;
+        case ID_TOOL_JWT:
+            JwtDecoderDialog::ShowFor(hwndMain_);
+            return;
+        case ID_TOOL_REGEX:
+            RegexTesterDialog::ShowFor(hwndMain_);
+            return;
+        case ID_TOOL_HASHID:
+            HashIdentifierDialog::ShowFor(hwndMain_);
+            return;
+        case ID_TOOL_TOTP:
+            TotpGeneratorDialog::ShowFor(hwndMain_);
+            return;
+        case ID_TOOL_USERAGENT:
+            UserAgentSwitcherDialog::ShowFor(hwndMain_, [this](const std::wstring& ua) {
+                SetUserAgentOnActiveTab(ua);
+            });
             return;
         case ID_TOOL_SSH_STUB:
         case ID_TOOL_PORTSCAN_STUB:
@@ -569,6 +614,13 @@ LRESULT BlackholeApp::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
                 AppendMenuW(menu, MF_STRING, ID_TOOL_HTTP, L"HTTP Request Tool (Intermediate+)");
                 AppendMenuW(menu, MF_STRING, ID_TOOL_JSCONSOLE, L"JavaScript Console (Advance+)");
                 AppendMenuW(menu, MF_STRING, ID_TOOL_DATATOOLKIT, L"Data Toolkit (Base64 / hashes)");
+                AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
+                AppendMenuW(menu, MF_STRING, ID_TOOL_JSON, L"JSON Formatter");
+                AppendMenuW(menu, MF_STRING, ID_TOOL_JWT, L"JWT Decoder");
+                AppendMenuW(menu, MF_STRING, ID_TOOL_REGEX, L"Regex Tester");
+                AppendMenuW(menu, MF_STRING, ID_TOOL_HASHID, L"Hash Identifier");
+                AppendMenuW(menu, MF_STRING, ID_TOOL_TOTP, L"TOTP Generator");
+                AppendMenuW(menu, MF_STRING, ID_TOOL_USERAGENT, L"User-Agent Switcher");
                 AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
                 AppendMenuW(menu, MF_STRING, ID_TOOL_SSH_STUB, L"SSH Terminal (ByteBandit - not yet ported)");
                 AppendMenuW(menu, MF_STRING, ID_TOOL_PORTSCAN_STUB, L"Port Scanner (ByteBandit - not yet ported)");
