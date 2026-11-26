@@ -12,7 +12,7 @@ Legend: ✅ ported · ⚠️ partially ported / stubbed · ❌ not started
 | `ModeManager.kt` | ✅ | `OpenToolForCurrentMode()` gates tools by mode |
 | `DownloadManager.kt` | ✅ | Folder + retention sweep (Stage 1) + hooked to `ICoreWebView2::add_DownloadStarting` (Stage 2) |
 | `HttpMethod.kt` | ✅ | `PostmanDialog.cpp` |
-| `NotificationManager.kt` | ❌ | Android toast/notification system has no 1:1 Windows equivalent requested yet — could map to `Shell_NotifyIcon` balloon tips if wanted |
+| `NotificationManager.kt` | ✅ (decision made, Stage 6) | Not ported as its own file: it was a thin `showAlert`/`showConfirm`/`showToast` wrapper, and the first two are exactly what `MessageBoxW` already does everywhere in this codebase. No dialog has needed a non-blocking toast yet, so one wasn't built speculatively - ask if a specific tool needs it and I'll add a small balloon-tip helper then. |
 | `Settings.kt` | ✅ | `Settings.h/.cpp`, INI instead of SharedPreferences |
 | `SettingsActivity.kt` | ✅ | `ShowSettingsDialog()` + `SettingsWndProc` in `BlackholeApp.cpp` |
 | `PostmanRequestDialog.kt` | ✅ | `PostmanDialog.h/.cpp` |
@@ -20,46 +20,51 @@ Legend: ✅ ported · ⚠️ partially ported / stubbed · ❌ not started
 | `DataToolkit.kt` | ✅ | `DataToolkitDialog.h/.cpp` (Base64 + 3 hashes; hex and a couple of the original's other conversions not yet added) |
 | `RequestLogEntry.kt` | ✅ | Data captured per tab (Stage 1) + `RequestLogDialog.h/.cpp` viewer (Stage 2) |
 | **Everything below: not started.** Each is self-contained (its own Kotlin file, own dialog layout), so they can be added one at a time without touching the core app. | | |
-| `AccessibilityChecker.kt` | ❌ | Benign: checks a page's DOM for missing alt text / ARIA labels. Good first candidate — pure JS injection + result parsing, same pattern as `JsConsoleDialog`. |
-| `BookmarkletRunner.kt` | ❌ | Benign: runs a user-supplied `javascript:` bookmarklet. Trivial once `JsConsoleDialog`'s `ExecuteScript` plumbing exists (it does). |
-| `CaseFileExport.kt` | ❌ | Benign: bundles session notes into an export file. |
-| `CipherSolver.kt` | ❌ | Benign: classic-cipher (Caesar/ROT13/etc.) solver utility. |
-| `CookieInspector.kt` | ❌ | Benign: lists cookies for the current page (read-only recon). |
-| `DiffViewer.kt` | ❌ | Benign: text diff utility. |
-| `DirectoryBuster.kt` | ❌ **not started, flagged for discussion** | Brute-forces common paths on a target server (same category as `gobuster`/`dirb`). Functionally recon, but noisier/more automatable than the others — happy to port if you confirm you want it, same as the rest. |
-| `DnsLookup.kt` | ❌ | Benign: DNS queries via standard resolver APIs. |
-| `ExploitShell.kt` | ❌ **not started, flagged for discussion** | The Kotlin file itself is explicitly scoped to recon-only (banner grabs/version checks, no RCE modules, by permanent design per its own doc comment) — low risk, straightforward port candidate. |
-| `FaviconHash.kt` | ❌ | Benign: hashes a site's favicon for fingerprinting (mmh3, same technique Shodan uses publicly). |
-| `FileInspector.kt` | ❌ | Benign: inspects a downloaded file's metadata. |
-| `GraphQLIntrospection.kt` | ❌ | Benign: sends a standard GraphQL introspection query. |
-| `HarExport.kt` | ❌ | Benign: exports the request log as a .har file. |
-| `HashCracker.kt` | ❌ **not started, flagged for discussion** | Wordlist-based hash cracking. Same category as `HydraLite` below — ask if you want it and I'll scope it. |
+| `AccessibilityChecker.kt` | ✅ (Stage 5) | `AccessibilityCheckerDialog.h/.cpp` - JS injection checks alt text, form labels, `<html lang>`, `<title>` |
+| `BookmarkletRunner.kt` | ✅ (Stage 5) | `BookmarkletRunnerDialog.h/.cpp` - strips `javascript:` prefix, runs via the same ExecFn plumbing as the JS console |
+| `CaseFileExport.kt` | ✅ (Stage 5) | `CaseFileExportDialog.h/.cpp` - freeform notes, exports to a timestamped .txt |
+| `CipherSolver.kt` | ✅ (Stage 5) | `CipherSolverDialog.h/.cpp` - ROT13, Atbash, all-26 Caesar shifts |
+| `CookieInspector.kt` | ✅ (Stage 5) | `CookieInspectorDialog.h/.cpp` + `BlackholeApp::GetCookiesForActiveTab` (`ICoreWebView2CookieManager`), read-only |
+| `DiffViewer.kt` | ✅ (Stage 5) | `DiffViewerDialog.h/.cpp` - line-based LCS diff |
+| `DirectoryBuster.kt` | ✅ (Stage 6) | `DirectoryBusterDialog.h/.cpp` - built-in ~185-path wordlist or custom, extension suffixes, 2000-request cap, 8-way bounded concurrency, authorization checkbox gate, redirects not auto-followed, bodies never read |
+| `DnsLookup.kt` | ✅ (Stage 4) | `DnsLookupDialog.h/.cpp` - A/AAAA/CNAME/MX/NS/TXT via `DnsQuery_W` |
+| `ExploitShell.kt` | ✅ (Stage 6) | `ExploitShellDialog.h/.cpp` - the msfconsole-shaped shell ported 1:1, all 3 original recon modules (HTTP/SSH/FTP banner grab), ByteBandit-mode gated. No exploit/RCE modules, by the same permanent design the original file stated. |
+| `FaviconHash.kt` | ✅ (Stage 4) | `FaviconHashDialog.h/.cpp` - fetches `/favicon.ico`, Base64 + MurmurHash3 x86-32, matches Shodan's `http.favicon.hash` format |
+| `FileInspector.kt` | ✅ (Stage 5) | `FileInspectorDialog.h/.cpp` - local file picker, hex dump, 14-signature magic-number type guess |
+| `GraphQLIntrospection.kt` | ✅ (Stage 5) | `GraphQLIntrospectionDialog.h/.cpp` - standard introspection query via new `HttpFetchPost` |
+| `HarExport.kt` | ✅ (Stage 5) | `HarExportDialog.h/.cpp` - minimal valid .har; see DOCUMENTATION.md for what fields are placeholders |
+| `HashCracker.kt` | ⚠️ (Stage 6) | `HashCrackerDialog.h/.cpp` - MD5/SHA-1/SHA-256/SHA-512/NTLM via Windows CNG, same mutation rules (capitalize/leet/append 0-99), 150k-attempt cap. **bcrypt is listed but not functional** - see the `Verify()` doc comment in the .cpp for why (no CNG primitive for it, and hand-rolling Blowfish+bcrypt without a reference implementation to test against was judged too risky for this pass). |
 | `HashIdentifier.kt` | ✅ (Stage 3) | `HashIdentifierDialog.h/.cpp` - pattern-matches length/charset against known formats, no cracking |
-| `HydraLite.kt` | ❌ **not started, flagged for discussion** | Credential brute-forcer (HTTP Basic/form, FTP, SSH) — same category as the real `hydra` tool. The upstream project scopes it to CTF/authorized-pentest use; I can port it, but wanted to call it out explicitly rather than bundle it in silently. |
+| `HydraLite.kt` | ✅ (Stage 6) | `HydraLiteDialog.h/.cpp` - all 4 original protocols (HTTP Basic, HTTP POST form, FTP, SSH), 500-attempt cap, 5-way concurrency, authorization checkbox gate, stops at first working credential. SSH protocol needs libssh2 (see `SshClient.h`) and deliberately skips host-key pinning for this tool, same as the original's `PromiscuousVerifier`. |
 | `JsonFormatter.kt` | ✅ (Stage 3) | `JsonFormatterDialog.h/.cpp` - structural pretty-print/minify, not a validating parser (same scope as upstream) |
 | `JwtDecoder.kt` | ✅ (Stage 3) | `JwtDecoderDialog.h/.cpp` - decodes header+payload via Base64URL, does not verify the signature |
-| `KnownHostsStore.kt` | ❌ | Supporting store for `SSHTerminal.kt` below. |
-| `PortScanner.kt` | ❌ **not started, flagged for discussion** | TCP connect-scan of a target's ports (same category as `nmap -sT`). Ask if you want it ported. |
+| `KnownHostsStore.kt` | ✅ (Stage 6) | `KnownHostsStore.h/.cpp` - file-based fingerprint pinning at `%APPDATA%\Blackhole\known_hosts.txt`; fingerprint format is this app's own (SHA-256 over libssh2's raw host-key bytes), not directly comparable to `ssh-keygen -l`'s output - see the header comment |
+| `PortScanner.kt` | ✅ (Stage 6) | `PortScannerDialog.h/.cpp` - same 29 common ports, non-blocking-connect + `select()` timeout (600ms), 12-way bounded concurrency, authorization checkbox gate |
 | `ProxyManager.kt` | ✅ (see above) | Folded into `CreateWebViewEnvironment()` / `Settings.h` |
 | `RegexTester.kt` | ✅ (Stage 3) | `RegexTesterDialog.h/.cpp` - `std::wregex`, ECMAScript grammar, shows match positions + capture groups |
-| `RequestTimeline.kt` | ❌ | Benign: visualizes request timing from the request log. |
-| `RobotsFetch.kt` | ❌ | Benign: fetches and displays `/robots.txt`. |
-| `ScreenshotCapture.kt` | ❌ | WebView2 has a direct equivalent (`CapturePreview`) — straightforward port. |
-| `SecurityHeaderScanner.kt` | ❌ | Benign: checks response headers against a security-header checklist (same idea as the public securityheaders.com). |
-| `SSHTerminal.kt` | ❌ **not started, flagged for discussion** | Was already a placeholder in the upstream Android app ("currently a placeholder; full integration... pending" per its own `README.md`). A real Windows SSH client would use `libssh2` — happy to wire it up if/when you want to tackle it. |
-| `StorageInspector.kt` | ❌ | Benign: inspects WebView storage (mostly moot here since WebView2 has no persistent storage enabled by default, same as the Android app's "always private" design). |
-| `StringsExtractor.kt` | ❌ | Benign: extracts printable strings from a downloaded file (like `strings(1)`). |
-| `TechFingerprint.kt` | ❌ | Benign: fingerprints a site's tech stack from headers/markup (like Wappalyzer). |
-| `TlsInspector.kt` | ❌ | Benign: inspects the TLS certificate of the current connection. |
+| `RequestTimeline.kt` | ✅ (Stage 5) | `RequestTimelineDialog.h/.cpp` - chronological log view with timestamps (added to `Tab::requestLog` in Stage 5); not a graphical waterfall, see DOCUMENTATION.md |
+| `RobotsFetch.kt` | ✅ (Stage 4) | `RobotsFetchDialog.h/.cpp` - fetches and displays `/robots.txt` |
+| `ScreenshotCapture.kt` | ✅ (Stage 5) | `ScreenshotCaptureDialog.h/.cpp` + `BlackholeApp::CaptureScreenshotOfActiveTab` (`ICoreWebView2::CapturePreview`) |
+| `SecurityHeaderScanner.kt` | ✅ (Stage 4) | `SecurityHeaderScannerDialog.h/.cpp` - checks 7 standard security headers via the shared `HttpFetch` helper |
+| `SSHTerminal.kt` | ✅ (Stage 6) | `SSHTerminalDialog.h/.cpp` + `SshClient.h/.cpp` (libssh2) + `KnownHostsStore` - trust-on-first-use host-key pinning with a Yes/No prompt showing the SHA-256 fingerprint, refuses outright on a later mismatch, password auth, single-command exec per Run click. Needs libssh2 at build time (optional dependency, see `docs/BUILD_WINDOWS.md`). |
+| `StorageInspector.kt` | ✅ (Stage 5) | `StorageInspectorDialog.h/.cpp` - localStorage/sessionStorage dump via JS injection, read-only |
+| `StringsExtractor.kt` | ✅ (Stage 5) | `StringsExtractorDialog.h/.cpp` - printable-ASCII run extraction (min length 4, same as Unix `strings`), capped at 2000 results |
+| `TechFingerprint.kt` | ✅ (Stage 4) | `TechFingerprintDialog.h/.cpp` - header/markup marker matching (20-entry table), same approach as Wappalyzer |
+| `TlsInspector.kt` | ✅ (Stage 4) | `TlsInspectorDialog.h/.cpp` - protocol/cipher/cert details via `WINHTTP_OPTION_SECURITY_CERTIFICATE_STRUCT` |
 | `TotpGenerator.kt` | ✅ (Stage 3) | `TotpGeneratorDialog.h/.cpp` - RFC 6238 TOTP via CNG HMAC-SHA1, Base32 secret decode, auto-refreshes every second |
 | `UserAgentSwitcher.kt` | ✅ (Stage 3) | `UserAgentSwitcherDialog.h/.cpp` + `BlackholeApp::SetUserAgentOnActiveTab` (`ICoreWebView2Settings2::put_UserAgent`), 4 presets + custom, reloads active tab |
-| `ViewportEmulator.kt` | ❌ | Benign: resizes the WebView2 controller bounds to emulate device viewports. |
-| `WhoisLookup.kt` | ❌ | Benign: WHOIS query over a raw TCP socket. |
+| `ViewportEmulator.kt` | ✅ (Stage 5) | `ViewportEmulatorDialog.h/.cpp` + `BlackholeApp::SetViewportOverrideForActiveTab` - shrinks the controller bounds, 6 device presets + custom |
+| `WhoisLookup.kt` | ✅ (Stage 4) | `WhoisLookupDialog.h/.cpp` - raw Winsock TCP to port 43, defaults to `whois.iana.org`, editable server field for registry referrals |
 
-## How to ask for the next batch
+## Status
 
-Tell me which rows above you want next — e.g. "port all the benign ❌ dev
-tools" or "just do PortScanner and HashCracker" — and I'll add them the
-same way: a header + implementation file per tool, wired into the Tools
-menu, with the same mode-gating (`ByteBandit`-only tools stay gated behind
-that mode, same as upstream).
+Every file from the original Android app is now ✅, with one explicitly
+non-functional edge case marked ⚠️: bcrypt verification in
+`HashCracker.kt`'s Windows port (every other hash type in that tool works).
+Nothing in this table is still ❌. `NotificationManager.kt`'s non-port is a
+deliberate decision, not a gap - see its row above.
+
+None of this has been compiled against real SDK/library headers (WebView2,
+libssh2). See `DOCUMENTATION.md`'s per-stage "notes" sections for the
+specific first-build risks I'd flag if I had to guess where an error
+would show up.

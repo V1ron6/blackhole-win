@@ -35,7 +35,57 @@ add_executable(Blackhole WIN32
     src/HashIdentifierDialog.cpp
     src/TotpGeneratorDialog.cpp
     src/UserAgentSwitcherDialog.cpp
+    src/HttpFetch.cpp
+    src/DnsLookupDialog.cpp
+    src/WhoisLookupDialog.cpp
+    src/TlsInspectorDialog.cpp
+    src/SecurityHeaderScannerDialog.cpp
+    src/TechFingerprintDialog.cpp
+    src/RobotsFetchDialog.cpp
+    src/FaviconHashDialog.cpp
+    src/AccessibilityCheckerDialog.cpp
+    src/BookmarkletRunnerDialog.cpp
+    src/CaseFileExportDialog.cpp
+    src/CipherSolverDialog.cpp
+    src/CookieInspectorDialog.cpp
+    src/DiffViewerDialog.cpp
+    src/FileInspectorDialog.cpp
+    src/GraphQLIntrospectionDialog.cpp
+    src/HarExportDialog.cpp
+    src/RequestTimelineDialog.cpp
+    src/ScreenshotCaptureDialog.cpp
+    src/StorageInspectorDialog.cpp
+    src/StringsExtractorDialog.cpp
+    src/ViewportEmulatorDialog.cpp
+    src/ExploitShellDialog.cpp
+    src/ConcurrentScan.h
+    src/WordlistLoader.cpp
+    src/PortScannerDialog.cpp
+    src/DirectoryBusterDialog.cpp
+    src/HashCrackerDialog.cpp
+    src/KnownHostsStore.cpp
+    src/SshClient.cpp
+    src/SSHTerminalDialog.cpp
+    src/HydraLiteDialog.cpp
 )
+
+# ---------------------------------------------------------------------------
+# libssh2 (OPTIONAL). Powers SSHTerminalDialog and HydraLiteDialog's SSH
+# protocol module. Without it, both still build and run - they just report
+# "SSH support was not compiled into this build" instead of connecting.
+# Install via vcpkg: `vcpkg install libssh2:x64-windows`, then pass
+# -DCMAKE_TOOLCHAIN_FILE=<vcpkg>/scripts/buildsystems/vcpkg.cmake to CMake
+# (see docs/BUILD_WINDOWS.md, "Installing libssh2 (optional)").
+# ---------------------------------------------------------------------------
+find_package(Libssh2 CONFIG QUIET)
+if (Libssh2_FOUND)
+    target_compile_definitions(Blackhole PRIVATE BLACKHOLE_HAVE_LIBSSH2)
+    target_link_libraries(Blackhole PRIVATE Libssh2::libssh2)
+    message(STATUS "libssh2 found - SSH Terminal and Hydra-lite's SSH module will be functional.")
+else()
+    message(STATUS "libssh2 NOT found - SSH Terminal and Hydra-lite's SSH module will build but report "
+                    "'not compiled into this build' at runtime. See docs/BUILD_WINDOWS.md to add it.")
+endif()
 
 target_include_directories(Blackhole PRIVATE
     src
@@ -54,9 +104,15 @@ target_link_libraries(Blackhole PRIVATE
     shlwapi.lib
     shell32.lib
     ole32.lib
+    crypt32.lib     # Base64 (DataToolkit, FaviconHash)
+    dnsapi.lib      # DnsLookupDialog
+    ws2_32.lib      # WhoisLookupDialog, DnsLookupDialog's InetNtopW
 )
 
-target_compile_definitions(Blackhole PRIVATE UNICODE _UNICODE)
+target_compile_definitions(Blackhole PRIVATE UNICODE _UNICODE NOMINMAX)
+# NOMINMAX: several Stage 5 dialogs call std::min/std::max (e.g.
+# DiffViewerDialog.cpp, FileInspectorDialog.cpp) - without this, windows.h's
+# min()/max() macros would wreck those calls at preprocess time.
 
 # Copy the WebView2Loader.dll and our assets next to the built exe so a
 # plain double-click works without hunting for files.

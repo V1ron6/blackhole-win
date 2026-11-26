@@ -10,10 +10,39 @@
 #include "HashIdentifierDialog.h"
 #include "TotpGeneratorDialog.h"
 #include "UserAgentSwitcherDialog.h"
+#include "DnsLookupDialog.h"
+#include "WhoisLookupDialog.h"
+#include "TlsInspectorDialog.h"
+#include "SecurityHeaderScannerDialog.h"
+#include "TechFingerprintDialog.h"
+#include "RobotsFetchDialog.h"
+#include "FaviconHashDialog.h"
+#include "AccessibilityCheckerDialog.h"
+#include "BookmarkletRunnerDialog.h"
+#include "CaseFileExportDialog.h"
+#include "CipherSolverDialog.h"
+#include "CookieInspectorDialog.h"
+#include "DiffViewerDialog.h"
+#include "FileInspectorDialog.h"
+#include "GraphQLIntrospectionDialog.h"
+#include "HarExportDialog.h"
+#include "RequestTimelineDialog.h"
+#include "ScreenshotCaptureDialog.h"
+#include "StorageInspectorDialog.h"
+#include "StringsExtractorDialog.h"
+#include "ViewportEmulatorDialog.h"
+#include "ExploitShellDialog.h"
+#include "PortScannerDialog.h"
+#include "DirectoryBusterDialog.h"
+#include "HashCrackerDialog.h"
+#include "SSHTerminalDialog.h"
+#include "HydraLiteDialog.h"
 #include <commctrl.h>
 #include <shlwapi.h>
+#include <objidl.h>
 #include <sstream>
 #include <cwctype>
+#include <algorithm>
 
 #pragma comment(lib, "shlwapi.lib")
 
@@ -32,6 +61,12 @@ namespace {
         // Tools menu
         ID_TOOL_HTTP = 1200, ID_TOOL_JSCONSOLE, ID_TOOL_DATATOOLKIT,
         ID_TOOL_JSON, ID_TOOL_JWT, ID_TOOL_REGEX, ID_TOOL_HASHID, ID_TOOL_TOTP, ID_TOOL_USERAGENT, // Stage 3
+        ID_TOOL_DNS, ID_TOOL_WHOIS, ID_TOOL_TLS, ID_TOOL_SECHEADERS, ID_TOOL_TECHFP,
+        ID_TOOL_ROBOTS, ID_TOOL_FAVICON, // Stage 4
+        ID_TOOL_A11Y, ID_TOOL_BOOKMARKLET, ID_TOOL_CASEFILE, ID_TOOL_CIPHER, ID_TOOL_COOKIES,
+        ID_TOOL_DIFF, ID_TOOL_FILEINSPECT, ID_TOOL_GRAPHQL, ID_TOOL_HAR, ID_TOOL_TIMELINE,
+        ID_TOOL_SCREENSHOT, ID_TOOL_STORAGE, ID_TOOL_STRINGS, ID_TOOL_VIEWPORT, // Stage 5
+        ID_TOOL_EXPLOITSHELL, ID_TOOL_HASHCRACK, // Stage 6
         ID_TOOL_SSH_STUB, ID_TOOL_PORTSCAN_STUB, ID_TOOL_HYDRA_STUB, ID_TOOL_DIRBUST_STUB,
 
         // Settings dialog (separate child window, own ID space)
@@ -313,7 +348,13 @@ void BlackholeApp::HookAdBlocking(Tab& tab) {
                     blocked = adBlocker_.IsBlocked(h);
                 }
 
-                tab.requestLog = (blocked ? L"BLOCKED  " : L"allowed  ") + uri + L"\r\n" + tab.requestLog;
+                // Stage 5: timestamp prefix added so RequestTimelineDialog
+                // has something chronological to show - Stage 1-4 only
+                // needed BLOCKED/allowed + URL for the plain log viewer.
+                SYSTEMTIME st; GetLocalTime(&st);
+                wchar_t ts[16];
+                wsprintfW(ts, L"%02d:%02d:%02d.%03d ", st.wHour, st.wMinute, st.wSecond, st.wMilliseconds);
+                tab.requestLog = ts + (blocked ? L"BLOCKED  " : L"allowed  ") + uri + L"\r\n" + tab.requestLog;
                 if (++tab.requestLogCount > 200) {
                     // RequestLogEntry.kt caps at 200 entries per tab, newest
                     // first; drop everything after the 200th "\r\n".
@@ -427,7 +468,19 @@ void BlackholeApp::LayoutControls() {
     // Resize every instantiated tab's controller, not just the active one,
     // so switching tabs after a resize doesn't show a stale size for a frame.
     for (auto& t : tabs_) {
-        if (t->controller) t->controller->put_Bounds(rc);
+        if (!t->controller) continue;
+        if (t->viewportOverride) {
+            // Stage 5 (ViewportEmulatorDialog): shrink the controller to
+            // the chosen device size, pinned to the top-left corner of the
+            // content area - a crude but functional viewport emulator
+            // (no scaling/centering chrome like Chrome DevTools draws).
+            RECT vp = rc;
+            vp.right  = std::min(rc.right,  rc.left + t->viewportW);
+            vp.bottom = std::min(rc.bottom, rc.top + t->viewportH);
+            t->controller->put_Bounds(vp);
+        } else {
+            t->controller->put_Bounds(rc);
+        }
     }
 }
 
@@ -516,6 +569,101 @@ void BlackholeApp::SetUserAgentOnActiveTab(const std::wstring& ua) {
     }
 }
 
+void BlackholeApp::GetCookiesForActiveTab(std::function<void(const std::wstring&)> callback) {
+    if (activeTab_ < 0 || activeTab_ >= (int)tabs_.size() || !tabs_[activeTab_]->webview) {
+        callback(L"(no active tab)");
+        return;
+    }
+    ComPtr<ICoreWebView2_2> wv2;
+    if (FAILED(tabs_[activeTab_]->webview.As(&wv2)) || !wv2) {
+        callback(L"(ICoreWebView2_2 / cookie manager unavailable on this WebView2 runtime)");
+        return;
+    }
+    ComPtr<ICoreWebView2CookieManager> mgr;
+    wv2->get_CookieManager(&mgr);
+    if (!mgr) { callback(L"(no cookie manager)"); return; }
+
+    wchar_t* uri = nullptr;
+    tabs_[activeTab_]->webview->get_Source(&uri);
+    std::wstring currentUri = uri ? uri : L"";
+    if (uri) CoTaskMemFree(uri);
+
+    mgr->GetCookies(currentUri.c_str(),
+        Callback<ICoreWebView2GetCookiesCompletedHandler>(
+            [callback](HRESULT, ICoreWebView2CookieList* list) -> HRESULT {
+                UINT count = 0;
+                if (list) list->get_Count(&count);
+                std::wstringstream out;
+                out << count << L" cookie(s):\r\n\r\n";
+                for (UINT i = 0; i < count; ++i) {
+                    ComPtr<ICoreWebView2Cookie> cookie;
+                    list->GetValueAtIndex(i, &cookie);
+                    if (!cookie) continue;
+                    LPWSTR name = nullptr, value = nullptr, domain = nullptr, path = nullptr;
+                    cookie->get_Name(&name);
+                    cookie->get_Value(&value);
+                    cookie->get_Domain(&domain);
+                    cookie->get_Path(&path);
+                    BOOL httpOnly = FALSE, secure = FALSE;
+                    cookie->get_IsHttpOnly(&httpOnly);
+                    cookie->get_IsSecure(&secure);
+                    out << (name ? name : L"") << L" = " << (value ? value : L"") << L"\r\n"
+                        << L"    domain=" << (domain ? domain : L"") << L"  path=" << (path ? path : L"")
+                        << L"  httpOnly=" << (httpOnly ? L"yes" : L"no")
+                        << L"  secure=" << (secure ? L"yes" : L"no") << L"\r\n\r\n";
+                    if (name) CoTaskMemFree(name);
+                    if (value) CoTaskMemFree(value);
+                    if (domain) CoTaskMemFree(domain);
+                    if (path) CoTaskMemFree(path);
+                }
+                callback(out.str());
+                return S_OK;
+            }).Get());
+}
+
+void BlackholeApp::CaptureScreenshotOfActiveTab(const std::wstring& pngPath,
+                                                 std::function<void(bool, const std::wstring&)> callback) {
+    if (activeTab_ < 0 || activeTab_ >= (int)tabs_.size() || !tabs_[activeTab_]->webview) {
+        callback(false, L"No active tab.");
+        return;
+    }
+    ComPtr<IStream> stream;
+    HRESULT hr = SHCreateStreamOnFileEx(pngPath.c_str(),
+        STGM_CREATE | STGM_WRITE | STGM_SHARE_EXCLUSIVE, FILE_ATTRIBUTE_NORMAL, TRUE, nullptr, &stream);
+    if (FAILED(hr) || !stream) {
+        callback(false, L"Could not create output file at " + pngPath);
+        return;
+    }
+
+    tabs_[activeTab_]->webview->CapturePreview(COREWEBVIEW2_CAPTURE_PREVIEW_IMAGE_FORMAT_PNG, stream.Get(),
+        Callback<ICoreWebView2CapturePreviewCompletedHandler>(
+            [callback, pngPath](HRESULT result) -> HRESULT {
+                if (SUCCEEDED(result)) callback(true, pngPath);
+                else callback(false, L"CapturePreview failed (HRESULT 0x" + std::to_wstring((unsigned)result) + L").");
+                return S_OK;
+            }).Get());
+}
+
+void BlackholeApp::SetViewportOverrideForActiveTab(int width, int height) {
+    if (activeTab_ < 0 || activeTab_ >= (int)tabs_.size()) return;
+    Tab& t = *tabs_[activeTab_];
+    t.viewportOverride = true;
+    t.viewportW = width;
+    t.viewportH = height;
+    LayoutControls();
+}
+
+void BlackholeApp::ClearViewportOverrideForActiveTab() {
+    if (activeTab_ < 0 || activeTab_ >= (int)tabs_.size()) return;
+    tabs_[activeTab_]->viewportOverride = false;
+    LayoutControls();
+}
+
+std::wstring BlackholeApp::GetRequestLogForActiveTab() {
+    if (activeTab_ < 0 || activeTab_ >= (int)tabs_.size()) return L"";
+    return tabs_[activeTab_]->requestLog;
+}
+
 void BlackholeApp::OpenToolForCurrentMode(int toolMenuId) {
     switch (toolMenuId) {
         case ID_TOOL_HTTP:
@@ -559,14 +707,128 @@ void BlackholeApp::OpenToolForCurrentMode(int toolMenuId) {
                 SetUserAgentOnActiveTab(ua);
             });
             return;
+        case ID_TOOL_DNS:
+            DnsLookupDialog::ShowFor(hwndMain_);
+            return;
+        case ID_TOOL_WHOIS:
+            WhoisLookupDialog::ShowFor(hwndMain_);
+            return;
+        case ID_TOOL_TLS:
+            TlsInspectorDialog::ShowFor(hwndMain_);
+            return;
+        case ID_TOOL_SECHEADERS:
+            SecurityHeaderScannerDialog::ShowFor(hwndMain_);
+            return;
+        case ID_TOOL_TECHFP:
+            TechFingerprintDialog::ShowFor(hwndMain_);
+            return;
+        case ID_TOOL_ROBOTS:
+            RobotsFetchDialog::ShowFor(hwndMain_);
+            return;
+        case ID_TOOL_FAVICON:
+            FaviconHashDialog::ShowFor(hwndMain_);
+            return;
+        case ID_TOOL_A11Y:
+            AccessibilityCheckerDialog::ShowFor(hwndMain_, [this](const std::wstring& script, auto cb) {
+                ExecuteScriptOnActiveTab(script, cb);
+            });
+            return;
+        case ID_TOOL_BOOKMARKLET:
+            BookmarkletRunnerDialog::ShowFor(hwndMain_, [this](const std::wstring& script, auto cb) {
+                ExecuteScriptOnActiveTab(script, cb);
+            });
+            return;
+        case ID_TOOL_CASEFILE:
+            CaseFileExportDialog::ShowFor(hwndMain_);
+            return;
+        case ID_TOOL_CIPHER:
+            CipherSolverDialog::ShowFor(hwndMain_);
+            return;
+        case ID_TOOL_COOKIES:
+            CookieInspectorDialog::ShowFor(hwndMain_, [this](auto cb) {
+                GetCookiesForActiveTab(cb);
+            });
+            return;
+        case ID_TOOL_DIFF:
+            DiffViewerDialog::ShowFor(hwndMain_);
+            return;
+        case ID_TOOL_FILEINSPECT:
+            FileInspectorDialog::ShowFor(hwndMain_);
+            return;
+        case ID_TOOL_GRAPHQL:
+            GraphQLIntrospectionDialog::ShowFor(hwndMain_);
+            return;
+        case ID_TOOL_HAR:
+            HarExportDialog::ShowFor(hwndMain_, [this]() { return GetRequestLogForActiveTab(); });
+            return;
+        case ID_TOOL_TIMELINE:
+            RequestTimelineDialog::ShowFor(hwndMain_, [this]() { return GetRequestLogForActiveTab(); });
+            return;
+        case ID_TOOL_SCREENSHOT:
+            ScreenshotCaptureDialog::ShowFor(hwndMain_, [this](const std::wstring& path, auto cb) {
+                CaptureScreenshotOfActiveTab(path, cb);
+            });
+            return;
+        case ID_TOOL_STORAGE:
+            StorageInspectorDialog::ShowFor(hwndMain_, [this](const std::wstring& script, auto cb) {
+                ExecuteScriptOnActiveTab(script, cb);
+            });
+            return;
+        case ID_TOOL_STRINGS:
+            StringsExtractorDialog::ShowFor(hwndMain_);
+            return;
+        case ID_TOOL_VIEWPORT:
+            ViewportEmulatorDialog::ShowFor(hwndMain_,
+                [this](int w, int h) { SetViewportOverrideForActiveTab(w, h); },
+                [this]() { ClearViewportOverrideForActiveTab(); });
+            return;
+        case ID_TOOL_EXPLOITSHELL:
+            if (settings_.browserMode < BrowserMode::ByteBandit) {
+                MessageBoxW(hwndMain_, L"The Exploit Shell unlocks in ByteBandit mode. "
+                    L"Switch modes in Settings.", L"Blackhole", MB_ICONINFORMATION);
+                return;
+            }
+            ExploitShellDialog::ShowFor(hwndMain_);
+            return;
         case ID_TOOL_SSH_STUB:
+            if (settings_.browserMode < BrowserMode::ByteBandit) {
+                MessageBoxW(hwndMain_, L"SSH Terminal unlocks in ByteBandit mode. "
+                    L"Switch modes in Settings.", L"Blackhole", MB_ICONINFORMATION);
+                return;
+            }
+            SSHTerminalDialog::ShowFor(hwndMain_);
+            return;
         case ID_TOOL_PORTSCAN_STUB:
+            if (settings_.browserMode < BrowserMode::ByteBandit) {
+                MessageBoxW(hwndMain_, L"Port Scanner unlocks in ByteBandit mode. "
+                    L"Switch modes in Settings.", L"Blackhole", MB_ICONINFORMATION);
+                return;
+            }
+            PortScannerDialog::ShowFor(hwndMain_);
+            return;
         case ID_TOOL_HYDRA_STUB:
+            if (settings_.browserMode < BrowserMode::ByteBandit) {
+                MessageBoxW(hwndMain_, L"Hydra-lite unlocks in ByteBandit mode. "
+                    L"Switch modes in Settings.", L"Blackhole", MB_ICONINFORMATION);
+                return;
+            }
+            HydraLiteDialog::ShowFor(hwndMain_);
+            return;
         case ID_TOOL_DIRBUST_STUB:
-            MessageBoxW(hwndMain_,
-                L"This ByteBandit-mode tool from the original Android app has not been "
-                L"ported to Windows yet. See docs/PORTING_NOTES.md for its status and "
-                L"the plan for adding it.", L"Not yet ported", MB_ICONINFORMATION);
+            if (settings_.browserMode < BrowserMode::ByteBandit) {
+                MessageBoxW(hwndMain_, L"Directory Buster unlocks in ByteBandit mode. "
+                    L"Switch modes in Settings.", L"Blackhole", MB_ICONINFORMATION);
+                return;
+            }
+            DirectoryBusterDialog::ShowFor(hwndMain_);
+            return;
+        case ID_TOOL_HASHCRACK:
+            if (settings_.browserMode < BrowserMode::ByteBandit) {
+                MessageBoxW(hwndMain_, L"Hash Cracker unlocks in ByteBandit mode. "
+                    L"Switch modes in Settings.", L"Blackhole", MB_ICONINFORMATION);
+                return;
+            }
+            HashCrackerDialog::ShowFor(hwndMain_);
             return;
     }
 }
@@ -622,10 +884,35 @@ LRESULT BlackholeApp::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
                 AppendMenuW(menu, MF_STRING, ID_TOOL_TOTP, L"TOTP Generator");
                 AppendMenuW(menu, MF_STRING, ID_TOOL_USERAGENT, L"User-Agent Switcher");
                 AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
-                AppendMenuW(menu, MF_STRING, ID_TOOL_SSH_STUB, L"SSH Terminal (ByteBandit - not yet ported)");
-                AppendMenuW(menu, MF_STRING, ID_TOOL_PORTSCAN_STUB, L"Port Scanner (ByteBandit - not yet ported)");
-                AppendMenuW(menu, MF_STRING, ID_TOOL_HYDRA_STUB, L"Hydra-lite (ByteBandit - not yet ported)");
-                AppendMenuW(menu, MF_STRING, ID_TOOL_DIRBUST_STUB, L"Directory Buster (ByteBandit - not yet ported)");
+                AppendMenuW(menu, MF_STRING, ID_TOOL_DNS, L"DNS Lookup");
+                AppendMenuW(menu, MF_STRING, ID_TOOL_WHOIS, L"WHOIS Lookup");
+                AppendMenuW(menu, MF_STRING, ID_TOOL_TLS, L"TLS Inspector");
+                AppendMenuW(menu, MF_STRING, ID_TOOL_SECHEADERS, L"Security Header Scanner");
+                AppendMenuW(menu, MF_STRING, ID_TOOL_TECHFP, L"Tech Fingerprint");
+                AppendMenuW(menu, MF_STRING, ID_TOOL_ROBOTS, L"robots.txt Fetch");
+                AppendMenuW(menu, MF_STRING, ID_TOOL_FAVICON, L"Favicon Hash");
+                AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
+                AppendMenuW(menu, MF_STRING, ID_TOOL_A11Y, L"Accessibility Checker");
+                AppendMenuW(menu, MF_STRING, ID_TOOL_BOOKMARKLET, L"Bookmarklet Runner");
+                AppendMenuW(menu, MF_STRING, ID_TOOL_CIPHER, L"Cipher Solver");
+                AppendMenuW(menu, MF_STRING, ID_TOOL_COOKIES, L"Cookie Inspector");
+                AppendMenuW(menu, MF_STRING, ID_TOOL_DIFF, L"Diff Viewer");
+                AppendMenuW(menu, MF_STRING, ID_TOOL_FILEINSPECT, L"File Inspector");
+                AppendMenuW(menu, MF_STRING, ID_TOOL_GRAPHQL, L"GraphQL Introspection");
+                AppendMenuW(menu, MF_STRING, ID_TOOL_HAR, L"Export Request Log as .har");
+                AppendMenuW(menu, MF_STRING, ID_TOOL_TIMELINE, L"Request Timeline");
+                AppendMenuW(menu, MF_STRING, ID_TOOL_SCREENSHOT, L"Screenshot Capture");
+                AppendMenuW(menu, MF_STRING, ID_TOOL_STORAGE, L"Storage Inspector");
+                AppendMenuW(menu, MF_STRING, ID_TOOL_STRINGS, L"Strings Extractor");
+                AppendMenuW(menu, MF_STRING, ID_TOOL_VIEWPORT, L"Viewport Emulator");
+                AppendMenuW(menu, MF_STRING, ID_TOOL_CASEFILE, L"Case File Export");
+                AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
+                AppendMenuW(menu, MF_STRING, ID_TOOL_EXPLOITSHELL, L"Exploit Shell (ByteBandit - recon-only)");
+                AppendMenuW(menu, MF_STRING, ID_TOOL_SSH_STUB, L"SSH Terminal (ByteBandit)");
+                AppendMenuW(menu, MF_STRING, ID_TOOL_PORTSCAN_STUB, L"Port Scanner (ByteBandit)");
+                AppendMenuW(menu, MF_STRING, ID_TOOL_HYDRA_STUB, L"Hydra-lite (ByteBandit)");
+                AppendMenuW(menu, MF_STRING, ID_TOOL_DIRBUST_STUB, L"Directory Buster (ByteBandit)");
+                AppendMenuW(menu, MF_STRING, ID_TOOL_HASHCRACK, L"Hash Cracker (ByteBandit)");
                 RECT r; GetWindowRect(hwndTools_, &r);
                 TrackPopupMenu(menu, TPM_LEFTALIGN | TPM_TOPALIGN, r.left, r.bottom, 0, hwnd, nullptr);
                 DestroyMenu(menu);

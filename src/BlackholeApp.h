@@ -21,6 +21,8 @@ struct Tab {
     ComPtr<ICoreWebView2>           webview;
     ComPtr<ICoreWebView2Settings>   webviewSettings; // Stage 2: cached so the JS toggle doesn't re-query each click
     bool jsEnabled = false; // Settings.kt: JS off by default, per tab
+    bool viewportOverride = false; // Stage 5: ViewportEmulatorDialog
+    int viewportW = 0, viewportH = 0;
     std::wstring requestLog; // capped at 200 entries, newest first - RequestLogEntry.kt
     int requestLogCount = 0;
     EventRegistrationToken navStartToken{}, navCompletedToken{}, resourceReqToken{}, newWindowToken{}, downloadToken{};
@@ -44,6 +46,15 @@ public:
     // Stage 3: used by UserAgentSwitcherDialog. Applies to the active tab
     // only and reloads it so the new UA takes effect on the current page.
     void SetUserAgentOnActiveTab(const std::wstring& ua);
+
+    // Stage 5 hooks - each needs direct WebView2 access, so they live here
+    // rather than duplicating ComPtr<ICoreWebView2...> plumbing per dialog.
+    void GetCookiesForActiveTab(std::function<void(const std::wstring&)> callback); // CookieInspectorDialog
+    void CaptureScreenshotOfActiveTab(const std::wstring& pngPath,
+                                       std::function<void(bool, const std::wstring&)> callback); // ScreenshotCaptureDialog
+    void SetViewportOverrideForActiveTab(int width, int height); // ViewportEmulatorDialog
+    void ClearViewportOverrideForActiveTab();
+    std::wstring GetRequestLogForActiveTab(); // shared by HarExportDialog / RequestTimelineDialog
 
     // Used by the Settings window (same translation unit, see
     // BlackholeApp.cpp's anonymous-namespace SettingsWndProc) to read the

@@ -29,12 +29,46 @@ JWT decoder (decode-only, no signature check), regex tester, hash
 identifier (pattern-match only, no cracking), TOTP generator, and
 user-agent switcher.
 
-Still not ported: ~19 smaller recon/dev-tool dialogs (WHOIS, DNS lookup,
-TLS inspector, etc. — planned for Stage 4-5) and the four heavier
-ByteBandit tools (SSH terminal, port scanner, Hydra-lite, directory buster
-— planned for Stage 6, one at a time, only on request). See
+**Stage 4** (this build) adds seven recon tools: DNS lookup, WHOIS lookup,
+TLS inspector (cert/protocol/cipher details), security header scanner,
+tech fingerprint, robots.txt fetch, and a Shodan-style favicon hash. A new
+shared `HttpFetch` helper backs four of them so the WinHTTP boilerplate
+isn't duplicated per-tool.
+
+**Stage 5** (this build) adds the last 14 benign dev tools: accessibility
+checker, bookmarklet runner, case file export, cipher solver, cookie
+inspector, diff viewer, file inspector, GraphQL introspection, HAR export,
+request timeline, screenshot capture, storage inspector, strings
+extractor, and viewport emulator. **This closes out every non-flagged file
+in the original app** — everything that's left is the handful of tools I
+deliberately flagged for a separate decision.
+
+**Stage 6** finishes the project: every remaining flagged tool is now
+ported, faithfully to original scope, each gated behind ByteBandit mode:
+
+- **Exploit Shell** — msfconsole-shaped shell, exactly three reconnaissance
+  modules (HTTP/SSH/FTP banner grabs). No exploit/RCE modules, by the same
+  permanent design constraint the original Kotlin file stated.
+- **Port Scanner** — TCP connect-scan of the same 29 common ports.
+- **Directory Buster** — path/file fuzzer, built-in or custom wordlist.
+- **Hash Cracker** — dictionary + mutation-rule cracking for MD5/SHA-1/
+  SHA-256/SHA-512/NTLM. bcrypt is listed but explicitly not functional
+  (explained in-app rather than silently failing) — Windows has no native
+  primitive for it, and hand-rolling Blowfish+bcrypt without a reference
+  implementation to verify against was judged too risky for this pass.
+- **SSH Terminal** and **Hydra-lite**'s SSH module — both need libssh2, an
+  optional build dependency (see `docs/BUILD_WINDOWS.md`); without it they
+  build fine and report plainly that SSH isn't available in that build.
+
+**Every file from the original Android app is now ported** — `HashCracker`'s
+bcrypt gap excepted, and `NotificationManager.kt`'s deliberate non-port
+(superseded by `MessageBoxW` usage already throughout). See
 [`docs/PORTING_NOTES.md`](docs/PORTING_NOTES.md) for the full file-by-file
-status.
+status, and [`docs/DOCUMENTATION.md`](docs/DOCUMENTATION.md) for the
+honest list of first-build risks across every stage.
+
+The only work left on this project is the actual first build on real
+Windows hardware.
 
 ## Quick start
 

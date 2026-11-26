@@ -81,6 +81,33 @@ The built `Blackhole.exe`, `WebView2Loader.dll`, and the `assets\` folder
 together — the exe looks for `assets\homepage.html` and
 `assets\adblock_hosts.txt` next to itself.
 
+## 2b. Installing libssh2 (optional)
+
+SSH Terminal and Hydra-lite's SSH protocol module need libssh2. Without it,
+the project still builds and runs fine - those two features just report
+"SSH support was not compiled into this build" instead of connecting.
+
+```powershell
+vcpkg install libssh2:x64-windows
+cmake -S . -B build -G "Visual Studio 17 2022" -A x64 `
+    -DCMAKE_TOOLCHAIN_FILE=C:\path\to\vcpkg\scripts\buildsystems\vcpkg.cmake `
+    -DWEBVIEW2_DIR="<path from step 2>"
+```
+
+(or with `builder.sh`: add `--vcpkg "C:/path/to/vcpkg/scripts/buildsystems/vcpkg.cmake"` -
+you already need vcpkg's toolchain file for this, so WebView2 via Option B
+above and libssh2 share the same `--vcpkg` flag.)
+
+`CMakeLists.txt` runs `find_package(Libssh2 CONFIG QUIET)` and prints which
+way it went (`libssh2 found` / `libssh2 NOT found`) during configure - check
+that line if you're not sure whether your build will have SSH support.
+
+If this build already used Option A (NuGet) for WebView2 and you still want
+libssh2, you can combine them: install libssh2 via vcpkg and pass both
+`-DCMAKE_TOOLCHAIN_FILE=...` and `-DWEBVIEW2_DIR=...` together, since
+`CMakeLists.txt`'s `WEBVIEW2_DIR` path and vcpkg's toolchain file don't
+conflict with each other.
+
 ## 3. Common first-build issues
 
 | Symptom | Likely cause |
