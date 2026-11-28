@@ -1,5 +1,10 @@
 # Blackhole for Windows (10/11)
 
+[![Build Windows exe](https://github.com/OWNER/REPO/actions/workflows/build-windows.yml/badge.svg)](https://github.com/OWNER/REPO/actions/workflows/build-windows.yml)
+
+*(Replace `OWNER/REPO` above with your actual GitHub path once you push
+this there - that's the one placeholder left in this project.)*
+
 A native C++ port of the [Blackhole](../blackhole-main) Android browser —
 a hardened, two-tab browser with CTF/pentest-lab modes. This port uses:
 
@@ -72,11 +77,19 @@ Windows hardware.
 
 ## Quick start
 
+**Easiest: push this to GitHub and let CI build it.**
+`.github/workflows/build-windows.yml` builds on a real `windows-latest`
+runner automatically (or on-demand via the Actions tab) and hands you back
+a downloadable `Blackhole.exe` - no Windows machine of your own needed just
+to find out whether it compiles. See
+[`docs/BUILD_WINDOWS.md`](docs/BUILD_WINDOWS.md)'s section 0.
+
+**Building locally instead:**
 1. Read [`docs/BUILD_WINDOWS.md`](docs/BUILD_WINDOWS.md) — you need Visual
    Studio 2022 (or the Build Tools) and the WebView2 SDK. **This project
    was written and documented on a Linux sandbox with no Windows machine
-   or network access available, so it has not been compiled or run yet.**
-   Expect to fix a handful of small build errors on your first build —
+   or network access available, so it has not been compiled locally.**
+   Expect to fix a handful of small build errors on your first local build —
    paste them back to me and I'll patch the source.
 2. Build with `./builder.sh` (Git Bash — see `docs/BUILD_WINDOWS.md` for the
    exact flags), plain CMake commands, or by opening the folder directly in

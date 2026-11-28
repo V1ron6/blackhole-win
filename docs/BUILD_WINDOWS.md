@@ -1,5 +1,28 @@
 # Building Blackhole on Windows 10/11
 
+## 0. Don't have a Windows machine? Use the GitHub Actions workflow
+
+`.github/workflows/build-windows.yml` builds this project automatically on
+a real `windows-latest` GitHub Actions runner - it downloads the WebView2
+SDK and libssh2 itself, so you don't need to do any of the setup below by
+hand. Push this repo to GitHub and either:
+
+- let it run automatically on a push/PR that touches `src/`, `assets/`, or
+  `CMakeLists.txt`, or
+- trigger it manually from the repo's **Actions** tab (**Build Windows
+  exe** → **Run workflow** - this uses `workflow_dispatch`, so no code
+  change is required to trigger it).
+
+When it finishes, the built `Blackhole.exe` (plus `WebView2Loader.dll` and
+`assets/`) is attached to that run as a downloadable artifact named
+**Blackhole-windows-x64**, zipped automatically by GitHub. If the build
+fails, a **cmake-logs** artifact with `CMakeOutput.log`/`CMakeError.log` is
+attached instead - paste the relevant part back to me and I'll fix the
+source.
+
+This is genuinely the fastest way to find out whether this project
+compiles: everything below is for building locally instead.
+
 > **Honesty check first:** this source was written in a Linux sandbox with
 > no network access and no Windows machine to test on. It follows the
 > standard Microsoft WebView2 C++ sample patterns closely, but it has

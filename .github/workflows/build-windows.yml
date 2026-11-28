@@ -1,0 +1,108 @@
+name: Build Windows exe
+
+# Builds Blackhole on a real windows-latest runner (which already ships
+# Visual Studio 2022's C++ toolchain and CMake, so no extra setup needed
+# for those). This is the actual build-and-report-errors step
+# docs/BUILD_WINDOWS.md has been asking for throughout the project - this
+# is the first environment that can really run it.
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'src/**'
+      - 'assets/**'
+      - 'CMakeLists.txt'
+      - '.github/workflows/build-windows.yml'
+  pull_request:
+    paths:
+      - 'src/**'
+      - 'assets/**'
+      - 'CMakeLists.txt'
+      - '.github/workflows/build-windows.yml'
+  workflow_dispatch: # lets you trigger a build manually from the Actions tab
+
+env:
+  # Pinned WebView2 SDK version (NuGet package, downloaded directly below -
+  # same package docs/BUILD_WINDOWS.md's Option A installs via Visual
+  # Studio's NuGet UI, just fetched headlessly here instead).
+  WEBVIEW2_VERSION: 1.0.4129.50
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # --- WebView2 SDK -----------------------------------------------
+      # A .nupkg is just a zip file with a different extension, so this
+      # downloads it straight from nuget.org's flat-file API (no NuGet.exe,
+      # no Visual Studio Package Manager Console needed) and unzips it into
+      # the same build/native/include + build/native/<arch> layout
+      # CMakeLists.txt's WEBVIEW2_DIR option expects.
+      - name: Download WebView2 SDK
+        shell: pwsh
+        run: |
+          $ver = "${{ env.WEBVIEW2_VERSION }}"
+          $url = "https://api.nuget.org/v3-flatcontainer/microsoft.web.webview2/$ver/microsoft.web.webview2.$ver.nupkg"
+          Invoke-WebRequest -Uri $url -OutFile webview2.zip
+          Expand-Archive -Path webview2.zip -DestinationPath webview2-sdk
+          echo "WEBVIEW2_DIR=$PWD\webview2-sdk" >> $env:GITHUB_ENV
+
+      # --- libssh2 (optional SSH support) -------------------------------
+      # Lets SSHTerminalDialog and HydraLiteDialog's SSH module actually
+      # work in the built exe, per docs/BUILD_WINDOWS.md's "Installing
+      # libssh2 (optional)" section. Cached so repeat runs don't rebuild it
+      # from source every time (vcpkg builds most ports from source).
+      - name: Cache vcpkg packages
+        uses: actions/cache@v4
+        with:
+          path: C:/vcpkg/installed
+          key: vcpkg-libssh2-x64-windows-${{ runner.os }}-v1
+
+      - name: Set up vcpkg
+        shell: pwsh
+        run: |
+          if (-not (Test-Path C:\vcpkg)) {
+            git clone --depth 1 https://github.com/microsoft/vcpkg C:\vcpkg
+            C:\vcpkg\bootstrap-vcpkg.bat
+          }
+          C:\vcpkg\vcpkg.exe install libssh2:x64-windows
+          echo "VCPKG_ROOT=C:\vcpkg" >> $env:GITHUB_ENV
+
+      # --- Configure + build --------------------------------------------
+      - name: Configure (CMake)
+        shell: pwsh
+        run: >
+          cmake -S . -B build -G "Visual Studio 17 2022" -A x64
+          -DWEBVIEW2_DIR="${{ env.WEBVIEW2_DIR }}"
+          -DCMAKE_TOOLCHAIN_FILE="${{ env.VCPKG_ROOT }}\scripts\buildsystems\vcpkg.cmake"
+
+      - name: Build (Release)
+        run: cmake --build build --config Release --parallel
+
+      # --- Package the result --------------------------------------------
+      # Blackhole.exe, WebView2Loader.dll, and assets/ all need to stay
+      # together - same requirement docs/BUILD_WINDOWS.md states for a
+      # manual build.
+      - name: Upload build output
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Blackhole-windows-x64
+          path: |
+            build/Release/Blackhole.exe
+            build/Release/WebView2Loader.dll
+            build/Release/assets/**
+          if-no-files-found: error
+
+      - name: Upload CMake logs (only if something went wrong)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cmake-logs
+          path: |
+            build/CMakeFiles/CMakeOutput.log
+            build/CMakeFiles/CMakeError.log
+          if-no-files-found: ignore

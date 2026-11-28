@@ -77,6 +77,10 @@ add_executable(Blackhole WIN32
 # -DCMAKE_TOOLCHAIN_FILE=<vcpkg>/scripts/buildsystems/vcpkg.cmake to CMake
 # (see docs/BUILD_WINDOWS.md, "Installing libssh2 (optional)").
 # ---------------------------------------------------------------------------
+# Package name and target casing verified against libssh2's own exported
+# CMake config (it defines both `libssh2::libssh2` and a `Libssh2::libssh2`
+# compatibility alias) - not a guess, confirmed via libssh2's upstream
+# docs/INSTALL_CMAKE.md and its installed libssh2-config.cmake.
 find_package(Libssh2 CONFIG QUIET)
 if (Libssh2_FOUND)
     target_compile_definitions(Blackhole PRIVATE BLACKHOLE_HAVE_LIBSSH2)
